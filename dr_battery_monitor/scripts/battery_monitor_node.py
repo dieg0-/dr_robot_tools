@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 
+import asyncio
 import rclpy
+import time
 
+from enum import Enum
 from rclpy.node import Node
 from sensor_msgs.msg import BatteryState
+
+from plugin_handler import load_plugins
+# from desktop_notifier import DesktopNotifier, Notification
 
 # Battery thresholds (Volts)
 NORMAL_VOLTAGE: float = 11.5
@@ -11,6 +17,11 @@ MID_VOLTAGE: float = 11.1
 WARNING_VOLTAGE: float = 10.5
 CRITICAL_VOLTAGE: float = 10.1
 
+class BatteryRange(Enum):
+    NORMAL = 1
+    MID = 2
+    WARNING = 3
+    CRITICAL = 4
 
 class BatteryMonitor(Node):
     def __init__(self):
@@ -22,9 +33,21 @@ class BatteryMonitor(Node):
         self.declare_parameter("warning_voltage", WARNING_VOLTAGE)
         self.declare_parameter("critical_voltage", CRITICAL_VOLTAGE)
 
+        self.handlers = load_plugins()
+        self.current_range = BatteryRange.NORMAL
+        self.last_notification = time.time()
+        # TODO
+        self.time_lapse = 1
+        # self.notifier = DesktopNotifier()
         self.battery_sub = self.create_subscription(
             BatteryState, "battery_state", self.battery_sub_clbk, qos_profile=10
         )
+    
+    # async def send_notification(self, notifier: DesktopNotifier, msg: str):
+    #     await notifier.send(
+    #         title="Battery Report",
+    #         message=msg
+    #     )
 
     def handle_normal_voltage(self):
         pass
@@ -32,8 +55,15 @@ class BatteryMonitor(Node):
     def handle_mid_voltage(self):
         # TODO
         self.get_logger().info(
-            "The battery state has reached a medium level. Considering wrapping-up soon."
+            "The battery state has reached a medium level. Consider wrapping-up soon."
         )
+        print(self.dummy_flag)
+        msg: str = "The battery state has reached a medium level. Consider wrapping-up soon."
+        # if not self.dummy_flag:
+        #     print("Will notify!")
+        #     self.dummy_flag = True
+        #     asyncio.run(self.send_notification(self.notifier, msg))
+        
 
     def handle_warning_voltage(self):
         # TODO
@@ -46,7 +76,7 @@ class BatteryMonitor(Node):
         )
 
     def battery_sub_clbk(self, battery_state: BatteryState):
-        # print(f"Battery percentage: {battery_state.percentage:.3} %")
+        print(f"Battery percentage: {battery_state.percentage:.3} %")
         normal_voltage: float = (
             self.get_parameter("normal_voltage").get_parameter_value().double_value
         )

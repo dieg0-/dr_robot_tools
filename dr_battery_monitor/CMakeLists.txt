@@ -18,6 +18,10 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME} # Destination for the workspace to place it
 )
 
+install(DIRECTORY scripts/handler_plugins/
+  DESTINATION share/${PROJECT_NAME}/handler_plugins
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
