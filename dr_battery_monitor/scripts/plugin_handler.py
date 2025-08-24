@@ -2,15 +2,17 @@ import importlib
 import inspect
 import os
 
+from typing import Dict
+
 from ament_index_python.packages import get_package_share_directory
 from battery_handler_base import BatteryHandlerBase
 
 
-def load_plugins():
+def load_plugins() -> Dict[str, BatteryHandlerBase]:
     package_dir = get_package_share_directory("dr_battery_monitor")
     plugins_dir = os.path.join(package_dir, "handler_plugins")
 
-    handlers = {}
+    handlers: dict[str, BatteryHandlerBase] = {}
     for f in [
         file_name for file_name in os.listdir(plugins_dir) if file_name != "__init__.py"
     ]:

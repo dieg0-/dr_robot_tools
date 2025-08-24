@@ -15,11 +15,17 @@ ament_python_install_package(scripts)
 
 install(PROGRAMS
   scripts/battery_monitor_node.py
+  scripts/dummy_battery_sim_node.py
   DESTINATION lib/${PROJECT_NAME} # Destination for the workspace to place it
 )
 
+# install plugins to be able to locate them and load them
 install(DIRECTORY scripts/handler_plugins/
   DESTINATION share/${PROJECT_NAME}/handler_plugins
+)
+
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
 )
 
 if(BUILD_TESTING)

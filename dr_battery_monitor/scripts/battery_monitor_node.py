@@ -4,10 +4,10 @@ import asyncio
 import rclpy
 import time
 
-from enum import Enum
 from rclpy.node import Node
 from sensor_msgs.msg import BatteryState
 
+from config_parser import BatteryRange, ConfigParser
 from plugin_handler import load_plugins
 # from desktop_notifier import DesktopNotifier, Notification
 
@@ -17,11 +17,7 @@ MID_VOLTAGE: float = 11.1
 WARNING_VOLTAGE: float = 10.5
 CRITICAL_VOLTAGE: float = 10.1
 
-class BatteryRange(Enum):
-    NORMAL = 1
-    MID = 2
-    WARNING = 3
-    CRITICAL = 4
+
 
 class BatteryMonitor(Node):
     def __init__(self):
@@ -33,6 +29,9 @@ class BatteryMonitor(Node):
         self.declare_parameter("warning_voltage", WARNING_VOLTAGE)
         self.declare_parameter("critical_voltage", CRITICAL_VOLTAGE)
 
+        self.config_parser = ConfigParser()
+        self.config = self.config_parser.load("default_config.yaml")
+        print(self.config)
         self.handlers = load_plugins()
         self.current_range = BatteryRange.NORMAL
         self.last_notification = time.time()
@@ -104,7 +103,8 @@ class BatteryMonitor(Node):
         self.get_logger().debug(
             f"The current voltage {state} V > normal minimum {normal_voltage} V and thus within the ideal working range."
         )
-        self.handle_normal_voltage()
+        # self.handle_normal_voltage()
+        self.handlers["DummyHandler"].handle(self.get_logger(), state)
 
 
 def main(args=None):

@@ -1,0 +1,4 @@
+NORMAL: DummyHandler
+MID: DummyHandler
+WARNING: DummyHandler
+CRITICAL: DummyHandler
