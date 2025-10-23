@@ -3,6 +3,7 @@
 import rclpy
 import threading
 
+from geometry_msgs.msg import TwistStamped
 from nicegui import ui, app, ui_run
 from rclpy.node import Node
 from rclpy.executors import ExternalShutdownException
@@ -12,33 +13,54 @@ from std_msgs.msg import String
 class ControlWebUINode(Node):
     def __init__(self):
         super().__init__("control_web_ui_node")
+        self.velocity_command = TwistStamped()
+        self.velocity_command.twist.linear.x = 0.0
+        self.velocity_command.twist.angular.z = 0.0
         self.publisher = self.create_publisher(String, "message", 10)
+        self.vel_publisher = self.create_publisher(TwistStamped, "/cmd_vel", 10)
+        self.timer = self.create_timer(0.5, self.publish_vel_command)
 
         @ui.page("/")
         def page():
             with ui.card():
                 with ui.column().classes("items-center gap-4"):
                     ui.button(
-                        "⇧", color="green", on_click=lambda: self.publish_command("Up")
+                        "⇧",
+                        color="green",
+                        on_click=lambda: self.set_vel_command(
+                            linear=0.01, angular=0.0
+                        ),
                     )
 
                     with ui.row().classes("gap-4"):
                         ui.button(
                             "⇦",
                             color="green",
-                            on_click=lambda: self.publish_command("Left"),
+                            on_click=lambda: self.set_vel_command(
+                                linear=0.0, angular=0.01
+                            ),
                         )
                         ui.button(
                             "⇩",
                             color="green",
-                            on_click=lambda: self.publish_command("Down"),
+                            on_click=lambda: self.set_vel_command(
+                                linear=-0.01, angular=0.0
+                            ),
                         )
                         ui.button(
                             "⇨",
                             color="green",
-                            on_click=lambda: self.publish_command("Right"),
+                            on_click=lambda: self.set_vel_command(
+                                linear=0.0, angular=-0.01
+                            ),
                         )
-
+                    ui.button(
+                        "STOP",
+                        color="red",
+                        on_click=lambda: self.set_vel_command(
+                            linear=0.0, angular=0.0
+                        ),
+                    )
                     ui.label("Velocity Control")
 
     def publish_command(self, m: str) -> None:
@@ -46,6 +68,14 @@ class ControlWebUINode(Node):
         msg = String()
         msg.data = m
         self.publisher.publish(msg)
+    
+    def set_vel_command(self, linear: float, angular: float) -> None:
+        self.get_logger().info(f"Setting velocity command {linear}, {angular}!")
+        self.velocity_command.twist.linear.x = linear
+        self.velocity_command.twist.angular.z = angular
+
+    def publish_vel_command(self) -> None:
+        self.vel_publisher.publish(self.velocity_command)
 
 
 """
