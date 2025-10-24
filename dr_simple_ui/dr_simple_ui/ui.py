@@ -18,6 +18,10 @@ MAX_ANGULAR_VELOCITY_DEFAULT = 0.5
 CMD_VEL_TOPIC_DEFAULT = "/cmd_vel"
 
 
+def normalize(value, min, max):
+    return (value - min) / (max - min)
+
+
 class Command(Enum):
     UP = 1
     LEFT = 2
@@ -27,7 +31,7 @@ class Command(Enum):
 
 class ControlWebUINode(Node):
     def __init__(self):
-        super().__init__("control_web_ui_node")
+        super().__init__("nice_teleop_node")
 
         # Parameters
         self.declare_parameter("cmd_vel_topic", CMD_VEL_TOPIC_DEFAULT)
@@ -50,6 +54,7 @@ class ControlWebUINode(Node):
 
         @ui.page("/")
         def page():
+            ui.label("Nice Teleop").style("font-size: 200%; font-weight: 300")
             with ui.card():
                 with ui.column().classes("items-center gap-4"):
                     ui.button(
@@ -81,6 +86,134 @@ class ControlWebUINode(Node):
                     )
                     ui.label("Velocity Control")
 
+            # State Display and Configuration
+            dark = ui.dark_mode()
+            dark.set_value(True)
+
+            # The sliders control the linear-progress-display for velocities but are not used for user-interaction
+            self.slider_lin_vel = ui.slider(
+                min=-self.get_parameter("max_linear_velocity")
+                .get_parameter_value()
+                .double_value,
+                max=self.get_parameter("max_linear_velocity")
+                .get_parameter_value()
+                .double_value,
+                value=0.0,
+            )
+
+            self.slider_ang_vel = ui.slider(
+                min=-self.get_parameter("max_angular_velocity")
+                .get_parameter_value()
+                .double_value,
+                max=self.get_parameter("max_angular_velocity")
+                .get_parameter_value()
+                .double_value,
+                value=0.0,
+            )
+
+            # TODO: Clean-Up UI Elements
+            with ui.row().style("gap: 0.5em; align-items: center"):
+                with ui.column().style("width: 100px"):
+                    ui.label("Linear Velocity: ")
+
+                with ui.column().style("width: 100px"):
+                    ui.label().bind_text_from(
+                        self.slider_lin_vel, "value", lambda val: f"{val:.2f} m/s"
+                    )
+
+            with ui.row().style("gap: 0.5em; align-items: center"):
+                with ui.column().style("width: 100px"):
+                    self.bar_linear_neg_velocity = ui.linear_progress(
+                        value=0.0, color="orange", show_value=False
+                    )
+
+                with ui.column().style("width: 100px"):
+                    self.bar_linear_velocity = ui.linear_progress(
+                        value=0.0, color="green", show_value=False
+                    )
+
+            with ui.row().style("gap: 0.5em; align-items: center"):
+                with ui.column().style("width: 100px"):
+                    ui.label("Ang. Velocity: ")
+
+                with ui.column().style("width: 100px"):
+                    ui.label().bind_text_from(
+                        self.slider_ang_vel, "value", lambda val: f"{val:.2f} rad/s"
+                    )
+
+            with ui.row().style("gap: 0.5em; align-items: center"):
+                with ui.column().style("width: 100px"):
+                    self.bar_angular_neg_velocity = ui.linear_progress(
+                        value=0.0, color="orange", show_value=False
+                    )
+
+                with ui.column().style("width: 100px"):
+                    self.bar_angular_velocity = ui.linear_progress(
+                        value=0.0, color="green", show_value=False
+                    )
+
+            self.slider_lin_vel.on("change", self.update_progress_bars)
+            self.slider_lin_vel.disable()
+            self.slider_lin_vel.set_visibility(False)
+
+            self.slider_ang_vel.on("change", self.update_progress_bars)
+            self.slider_ang_vel.disable()
+            self.slider_ang_vel.set_visibility(False)
+
+            ui.switch("Dark mode").bind_value(dark)
+
+    def update_progress_bars(self, linear: float, angular: float):
+        normalized_linear = normalize(
+            abs(linear),
+            0.0,
+            self.get_parameter("max_linear_velocity")
+            .get_parameter_value()
+            .double_value,
+        )
+        if linear < 0:
+            self.bar_linear_neg_velocity.value = normalized_linear
+            self.bar_linear_velocity.value = 0.0
+        else:
+            self.bar_linear_neg_velocity.value = 0.0
+            self.bar_linear_velocity.value = normalized_linear
+
+        normalized_angular = normalize(
+            abs(angular),
+            0.0,
+            self.get_parameter("max_angular_velocity")
+            .get_parameter_value()
+            .double_value,
+        )
+        if angular < 0:
+            self.bar_angular_neg_velocity.value = normalized_angular
+            self.bar_angular_velocity.value = 0.0
+        else:
+            self.bar_angular_neg_velocity.value = 0.0
+            self.bar_angular_velocity.value = normalized_angular
+
+    def update_progress_bar_properties(self):
+        if self.slider_lin_vel.value >= self.slider_lin_vel.props["max"]:
+            # Max. linear velocity reached -> Display red
+            self.bar_linear_velocity.props["color"] = "red"
+        else:
+            self.bar_linear_velocity.props["color"] = "green"
+
+        if self.slider_lin_vel.value <= self.slider_lin_vel.props["min"]:
+            self.bar_linear_neg_velocity.props["color"] = "red"
+        else:
+            self.bar_linear_neg_velocity.props["color"] = "orange"
+
+        if self.slider_ang_vel.value >= self.slider_ang_vel.props["max"]:
+            # Max. angular velocity reached -> Display red
+            self.bar_angular_velocity.props["color"] = "red"
+        else:
+            self.bar_angular_velocity.props["color"] = "green"
+
+        if self.slider_ang_vel.value <= self.slider_ang_vel.props["min"]:
+            self.bar_angular_neg_velocity.props["color"] = "red"
+        else:
+            self.bar_angular_neg_velocity.props["color"] = "orange"
+
     def update_vel_command(self, command: Command) -> None:
         if command == Command.UP:
             self.velocity_command.twist.linear.x = min(
@@ -108,7 +241,7 @@ class ControlWebUINode(Node):
                 - self.get_parameter("angular_velocity_step")
                 .get_parameter_value()
                 .double_value,
-                -self.get_parameter("max_linear_velocity")
+                -self.get_parameter("max_angular_velocity")
                 .get_parameter_value()
                 .double_value,
             )
@@ -122,16 +255,24 @@ class ControlWebUINode(Node):
                 .get_parameter_value()
                 .double_value,
             )
+        self.slider_lin_vel.value = self.velocity_command.twist.linear.x
+        self.slider_ang_vel.value = self.velocity_command.twist.angular.z
+        self.update_progress_bars(self.slider_lin_vel.value, self.slider_ang_vel.value)
+        self.update_progress_bar_properties()
         self.get_logger().info(
             f"Current velocity command: [ linear: ( {self.velocity_command.twist.linear.x} m/s ), angular: ( {self.velocity_command.twist.angular.z} rad/s ) ]"
         )
 
     def set_vel_command(self, linear: float, angular: float) -> None:
         self.get_logger().info(
-            f"Current velocity command: [ linear: ( {linear} m/s ), angular: ( {angular} rad/s ) ]"
+            f"Current velocity command: [ linear: ( {self.velocity_command.twist.linear.x} m/s ), angular: ( {self.velocity_command.twist.angular.z} rad/s ) ]"
         )
         self.velocity_command.twist.linear.x = linear
         self.velocity_command.twist.angular.z = angular
+        self.slider_lin_vel.value = self.velocity_command.twist.linear.x
+        self.slider_ang_vel.value = self.velocity_command.twist.angular.z
+        self.update_progress_bars(self.slider_lin_vel.value, self.slider_ang_vel.value)
+        self.update_progress_bar_properties()
 
     def publish_vel_command(self) -> None:
         self.cmd_vel_publisher.publish(self.velocity_command)
